@@ -1,1 +1,1 @@
-# prir_poc_projekt
+# Projekt z predmetu Prirodou inspirovane pocitanie
