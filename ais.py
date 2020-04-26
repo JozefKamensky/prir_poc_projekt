@@ -4,12 +4,12 @@ import copy
 
 
 class AIS:
-    def __init__(self, generate_antibody, calculate_fitness, mutate_solution, clone_to_new_ratio, population_size):
+    def __init__(self, generate_antibody, calculate_fitness, mutations, clone_to_new_ratio, population_size):
         self.clone_to_new_ratio = clone_to_new_ratio
         self.population_size = population_size
         self.generate_antibody = generate_antibody
         self.calculate_fitness = calculate_fitness
-        self.mutate_solution = mutate_solution
+        self.mutations = mutations
 
         self.out_file = open('log.txt', 'w')
         self.log_columns = ['fitness', 'clone_chance', 'mutation_chance']
@@ -68,11 +68,13 @@ class AIS:
                 if r <= t:
                     m = random.uniform(0, 1)
                     sol = copy.deepcopy(solution['solution'])
-                    if m < solution['mutation_chance']:
-                        self.out_file.write('cloned solution with mutation, fitness was ' + str(solution['fitness']) + '\n')
-                        sol = self.mutate_solution(sol)
-                    else:
-                        self.out_file.write('cloned solution with fitness ' + str(solution['fitness']) + '\n')
+                    if m < 0.9:
+                        sol = self.mutations[random.randint(0, len(self.mutations) - 1)](sol)
+                    # if m < solution['mutation_chance']:
+                    #     self.out_file.write('cloned solution with mutation, fitness was ' + str(solution['fitness']) + '\n')
+                    #     sol = self.mutate_solution(sol)
+                    # else:
+                    #     self.out_file.write('cloned solution with fitness ' + str(solution['fitness']) + '\n')
                     self.next_population.append(sol)
                     break
         for i in range(0, num_solutions_to_generate):
@@ -86,3 +88,5 @@ class AIS:
         self.out_file.write('\n')
         self.out_file.write('\n')
 
+    def get_best_solution(self):
+        return self.best_solution

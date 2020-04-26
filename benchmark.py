@@ -3,6 +3,18 @@ import pandas as pd
 from ais import AIS
 import numpy.random as npr
 import random
+import matplotlib.pyplot as plt
+
+colors = [
+    '#000000',
+    '#55415f',
+    '#646964',
+    '#d77355',
+    '#508cd7',
+    '#64b964',
+    '#e6c86e',
+    '#dcf5ff',
+]
 
 
 def euclidean(a, b):
@@ -11,7 +23,7 @@ def euclidean(a, b):
 
 CUSTOMERS = {}
 NUM_OF_CUSTOMERS = 25
-NUM_OF_VEHICLES = 1
+NUM_OF_VEHICLES = 8
 MAX_CAPACITY = 200
 
 
@@ -96,6 +108,31 @@ def mutate_solution(solution):
     return solution
 
 
+def mutate_solution_2(solution):
+    s = random.randint(1, len(solution) - 1)
+    e = random.randint(1, len(solution) - 1)
+
+    val_s = solution[s]
+    val_e = solution[e]
+
+    solution[e] = val_s
+    solution[s] = val_e
+
+    return solution
+
+
+def mutate_solution_3(solution):
+    s = random.randint(1, len(solution) - 1)
+    e = random.randint(1, len(solution) - 1)
+
+    if e < s:
+        e, s = s, e
+
+    solution[s:e] = npr.permutation(solution[s:e])
+
+    return solution
+
+
 data = pd.read_csv('./data/r101.csv')
 for index, row in data.iterrows():
     CUSTOMERS[int(row[0])] = {
@@ -106,7 +143,25 @@ for index, row in data.iterrows():
         "WINDOW_END": int(row[5]),
         "SERVICE_TIME": int(row[6]),
     }
-asf = AIS(generate_solution, calculate_fitness, mutate_solution, 0.8, 100)
-for i in range(0, 500):
+asf = AIS(generate_solution, calculate_fitness, [mutate_solution, mutate_solution_2, mutate_solution_3], 0.7, 200)
+for i in range(0, 100):
     asf.next_generation()
+
+    best = asf.get_best_solution()
+    plt.close('all')
+    plt.figure(figsize=(10, 10))
+    prev = None
+    c = -1
+    clr = colors[0]
+    for val in best:
+        if prev is not None:
+            x = (CUSTOMERS[prev]['X'], CUSTOMERS[val]['X'])
+            y = (CUSTOMERS[prev]['Y'], CUSTOMERS[val]['Y'])
+            plt.plot(x, y, marker='o', color=clr)
+        if val == 0:
+            c += 1
+            clr = colors[c]
+        prev = val
+    plt.savefig('./gif/' + str(i) + '.png', dpi=50)
+
 
