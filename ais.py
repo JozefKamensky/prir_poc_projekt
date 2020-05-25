@@ -2,9 +2,59 @@ import random
 import copy
 
 
+def pick_n_by_roulette_max_once(n, pick_from):
+    picked = []
+    for i in range(0, n):
+        t = 0
+        r = random.random()
+        for solution in pick_from:
+            t += solution['pick_chance']
+            if r <= t:
+                picked.append(solution)
+                pick_from.remove(solution)
+                break
+    return picked
+
+
+def pick_n_by_roulette(n, pick_from):
+    picked = []
+    for i in range(0, n):
+        t = 0
+        r = random.random()
+        for solution in pick_from:
+            t += solution['pick_chance']
+            if r <= t:
+                picked.append(solution)
+                break
+    return picked
+
+
+def calc_pick_chances(solutions):
+    total_affinity = 0
+    for solution in solutions:
+        total_affinity += solution['affinity']
+    for solution in solutions:
+        solution['pick_chance'] = solution['affinity'] / total_affinity
+
+
+def clone_solution(solutions):
+    solution = pick_n_by_roulette(1, solutions)[0]
+    return copy.deepcopy(solution['path'])
+
+
+def remove_repeating_zeros(solution):
+    edited_solution = [0]
+    for val in solution:
+        if val == 0 and edited_solution[-1] == 0:
+            continue
+        else:
+            edited_solution.append(val)
+    return edited_solution
+
+
 class AIS:
     def __init__(self, generate_antibody, calculate_fitness, calculate_affinity, mutation_chance, mutations,
-                 best_ratio, replace_ratio, newcomer_ratio, population_size):
+                 best_ratio, replace_ratio, newcomer_ratio, population_size, is_viable):
         self.best_ratio = best_ratio
         self.replace_ratio = replace_ratio
         self.newcomer_ratio = newcomer_ratio
@@ -18,6 +68,7 @@ class AIS:
         self.mutations = mutations
         self.mutation_chance = mutation_chance
         self.minimal_num_of_diffs = 2
+        self.is_viable = is_viable
 
         self.out_file = open('log.txt', 'w')
         self.log_columns = ['fitness', 'pick_chance', 'mutation_chance']
@@ -25,9 +76,13 @@ class AIS:
         self.num_of_generation = 0
         self.current_population = []
         self.next_population = []
-        self.best_solution = []
+        self.best_solution = {
+            'fitness': 100000
+        }
+        print('initialize')
         for i in range(0, population_size):
             self.current_population.append(generate_antibody())
+        print('initialization done')
 
     def evaluate_solutions(self, paths):
         evaluated_solutions = []
@@ -39,45 +94,26 @@ class AIS:
                 'fitness': f['fitness'],
                 'affinity': a,
                 'distance': f['distance'],
-                'time_penalty': f['time_penalty'],
+                'vehicles': f['vehicles'],
+                # 'time_penalty': f['time_penalty'],
                 'path': path
             }
             evaluated_solutions.append(solution)
         evaluated_solutions.sort(key=lambda x: x['affinity'], reverse=True)
         return evaluated_solutions
 
-    def calc_pick_chances(self, solutions):
-        total_affinity = 0
-        for solution in solutions:
-            total_affinity += solution['affinity']
-        for solution in solutions:
-            solution['pick_chance'] = solution['affinity'] / total_affinity
-
-    def pick_n_by_roullete(self, n, pick_from):
-        picked = []
-        for i in range(0, n):
-            t = 0
-            r = random.random()
-            for solution in pick_from:
-                t += solution['pick_chance']
-                if r <= t:
-                    picked.append(solution)
-                    break
-        return picked
-
-    def clone_solution(self, solutions):
-        solution = self.pick_n_by_roullete(1, solutions)[0]
-        return copy.deepcopy(solution['path'])
-
     def mutate_solution(self, solution):
         if random.random() < self.mutation_chance:
-            return self.mutations[random.randint(0, len(self.mutations) - 1)](solution)
+            s = self.mutations[random.randint(0, len(self.mutations) - 1)](solution)
         else:
-            return solution
+            s = solution
+        return remove_repeating_zeros(s)
 
     def is_solution_similar_to_another(self, solution, solutions):
         for s in solutions:
             num_of_diffs = 0
+            if len(s) != len(solution):
+                continue
             for i in range(0, len(s)):
                 if s[i] != solution[i]:
                     num_of_diffs += 1
@@ -96,17 +132,18 @@ class AIS:
         # print('------------- GENERATION ' + str(self.num_of_generation) + ' -------------')
 
         evaluated_solutions = self.evaluate_solutions(self.current_population)
-        self.calc_pick_chances(evaluated_solutions)
+        calc_pick_chances(evaluated_solutions)
         self.log_population(evaluated_solutions)
-        print(evaluated_solutions[0])
-        self.out_file.write(str(evaluated_solutions[0]) + '\n')
-        self.best_solution = evaluated_solutions[0]
+        # self.out_file.write(str(evaluated_solutions[0]) + '\n')
+        if evaluated_solutions[0]['fitness'] < self.best_solution['fitness']:
+            self.best_solution = evaluated_solutions[0]
+        print(self.best_solution)
 
         cloned_solutions = []
         while len(cloned_solutions) < self.population_size:
-            cloned_solution = self.clone_solution(evaluated_solutions)
+            cloned_solution = clone_solution(evaluated_solutions)
             mutated_solution = self.mutate_solution(cloned_solution)
-            if not self.is_solution_similar_to_another(mutated_solution, cloned_solutions):
+            if self.is_viable(mutated_solution):
                 cloned_solutions.append(mutated_solution)
         evaluated_cloned_solutions = self.evaluate_solutions(cloned_solutions)
 
@@ -115,23 +152,31 @@ class AIS:
             next_population.append(self.generate_antibody())
 
         for i in range(0, self.num_of_best_solutions_to_keep):
-            next_population.append(evaluated_solutions[i]['path'])
+            if not self.is_solution_similar_to_another(evaluated_solutions[i]['path'], next_population):
+                next_population.append(evaluated_solutions[i]['path'])
+            evaluated_solutions.remove(evaluated_solutions[i])
 
-        for i in range(0,self.num_of_worst_solutions_to_discard):
+        for i in range(0, self.num_of_worst_solutions_to_discard):
             evaluated_solutions.pop()
 
         solution_pool = evaluated_solutions + evaluated_cloned_solutions
         # print(len(solution_pool))
-        self.calc_pick_chances(solution_pool)
+        calc_pick_chances(solution_pool)
         free_slots = self.population_size - self.num_of_best_solutions_to_keep - self.num_of_solutions_to_generate
         # print(str(free_slots))
 
-        picked = self.pick_n_by_roullete(free_slots, solution_pool)
+        picked = []
+        while free_slots > 0:
+            possible_solution = pick_n_by_roulette(1, solution_pool)[0]['path']
+            if not self.is_solution_similar_to_another(possible_solution, picked):
+                picked.append(possible_solution)
+                free_slots -= 1
         # print(len(picked))
 
-        next_population += list(map(lambda s: s['path'], picked))
+        # next_population += list(map(lambda s: s['path'], picked))
+        next_population += list(picked)
         self.current_population = next_population
-        self.log_population(self.current_population)
+        # self.log_population(self.current_population)
 
     def get_best_solution(self):
         return self.best_solution
