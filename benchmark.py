@@ -47,7 +47,9 @@ def distance_of_customers(c1, c2):
 CUSTOMERS = {}
 NUM_OF_CUSTOMERS = 25
 NUM_OF_VEHICLES = 25
-MAX_CAPACITY = 1000
+
+# change before run
+MAX_CAPACITY = 200
 
 
 def generate_solution():
@@ -70,23 +72,6 @@ def generate_solution():
             # insert 0 to end to correctly calculate last route with return to depot
             possible_solution.append(0)
             return possible_solution
-
-        # used_vehicles = random.randint(1, NUM_OF_VEHICLES)
-        # used_vehicles = NUM_OF_VEHICLES
-        # # first vehicle needs to be first in array
-        # customer_order.insert(0, 0)
-        # used_vehicles -= 1
-        # possible_indices = list(range(2, len(customer_order)))
-        # for j in range(0, used_vehicles):
-        #     selected_index = possible_indices[random.randint(0, len(possible_indices) - 1)]
-        #     for index, val in enumerate(possible_indices):
-        #         if val >= selected_index:
-        #             possible_indices[index] = val + 1
-        #     possible_indices.remove(selected_index + 1)
-        #     customer_order.insert(selected_index, 0)
-        # if is_solution_viable(customer_order):
-        #     customer_order.append(0)
-        #     return customer_order
 
 
 # called after creation of new solution or mutations - only viable solutions are part of population
@@ -145,8 +130,6 @@ def calculate_fitness(solution):
             number_of_used_vehicles += 1
         prev_val = val
     return {
-        # 'fitness': total_distance + number_of_used_vehicles * 50,
-        'fitness': total_distance,
         'distance': total_distance,
         'vehicles': number_of_used_vehicles
     }
@@ -154,7 +137,6 @@ def calculate_fitness(solution):
 
 def calculate_affinity(fitness):
     return 1/fitness
-    # return 4000 - fitness
 
 
 def mutate_exchange_adjacent(solution):
@@ -241,7 +223,6 @@ def mutate_move_value(solution):
 
 random.seed()
 data = pd.read_csv('./data/c101_25.csv')
-plt.figure(figsize=(10, 10))
 for index, row in data.iterrows():
     x = int(row[1])
     y = int(row[2])
@@ -253,79 +234,42 @@ for index, row in data.iterrows():
         "WINDOW_END": int(row[5]),
         "SERVICE_TIME": int(row[6]),
     }
-    plt.plot(x, y, marker='o')
-    plt.text(x, y + 0.5, str(int(row[4])) + ' - ' + str(int(row[5])))
-plt.savefig('./c101_25/problem.png', dpi=50)
-
-res_file = open('c101_25/results.txt', 'w')
-ratio_keep_best = 0
 ratio_replace_worst = 0
 ratio_generate_new = 0
 num_of_iterations = 1000
 pop_size = 100
-res_file.write('pop_size: ' + str(pop_size) + '\n')
-res_file.write('num_of_iterations: ' + str(num_of_iterations) + '\n')
-res_file.write('ratio_keep_best: ' + str(ratio_keep_best) + '\n')
-res_file.write('ratio_replace_worst: ' + str(ratio_replace_worst) + '\n')
-res_file.write('ratio_generate_new: ' + str(ratio_generate_new) + '\n')
-for k in range(0, 20):
-    run_file = open('c101_25/' + str(k) + '.txt', 'w')
-    asf = AIS(
-        generate_solution,
-        calculate_fitness,
-        calculate_affinity,
-        1,
-        [mutate_exchange_adjacent, mutate_exchange_two_values, mutate_join_two_routes, mutate_reverse_range, mutate_permutation_range, mutate_move_value],
-        ratio_keep_best,
-        ratio_replace_worst,
-        ratio_generate_new,
-        pop_size,
-        is_solution_viable)
-    for i in range(0, num_of_iterations):
-        asf.next_generation()
-        best = asf.get_best_solution()
-        run_file.write(str(best['distance']) + ',' + str(best['vehicles']) + '\n')
-    run_file.close()
-    res_file.write(str(best) + '\n')
+ais = AIS(
+    generate_solution,
+    calculate_fitness,
+    calculate_affinity,
+    1,
+    [mutate_exchange_adjacent, mutate_exchange_two_values, mutate_join_two_routes, mutate_reverse_range, mutate_permutation_range, mutate_move_value],
+    ratio_replace_worst,
+    ratio_generate_new,
+    pop_size,
+    is_solution_viable)
+for i in range(0, num_of_iterations):
+    ais.next_generation()
+    best = ais.get_best_solution()
 
-    plt.close('all')
-    plt.figure(figsize=(10, 10))
-    prev = None
-    c = -1
-    clr = colors[0]
-    order = 0
-    for val in best['path']:
-        if prev is not None:
-            x = (CUSTOMERS[prev]['X'], CUSTOMERS[val]['X'])
-            y = (CUSTOMERS[prev]['Y'], CUSTOMERS[val]['Y'])
-            plt.plot(x, y, marker='o', color=clr, lw=2)
-            plt.text(CUSTOMERS[val]['X'], CUSTOMERS[val]['Y'] + 0.5, str(order), color=clr)
-            order += 1
-        if val == 0:
-            order = 1
-            c += 1
-            clr = colors[c]
-        prev = val
-    plt.savefig('./c101_25/' + str(k) + '.png', dpi=50)
-res_file.close()
-    # t = 0
-    # out_f = open('best.txt', 'w')
-    # prev = None
-    # for val in best['path']:
-    #     if prev is not None:
-    #         t += euclidean(
-    #             (CUSTOMERS[prev]['X'], CUSTOMERS[prev]['Y']),
-    #             (CUSTOMERS[val]['X'], CUSTOMERS[val]['Y']),
-    #         )
-    #         out_f.write('time: ' + str(t) + ', ' + str(CUSTOMERS[val]['WINDOW_START']) + ' - ' + str(
-    #             CUSTOMERS[val]['WINDOW_END']) + '\n')
-    #         t += CUSTOMERS[prev]['SERVICE_TIME']
-    #     if val == 0:
-    #         t = 0
-    #     prev = val
-    # out_f.close()
-    # out_f = open('runs.txt', 'a')
-    # out_f.write(str(best) + '\n')
-
+# plot best solution
+plt.figure(figsize=(10, 10))
+prev = None
+c = -1
+clr = colors[0]
+order = 0
+for val in best['path']:
+    if prev is not None:
+        x = (CUSTOMERS[prev]['X'], CUSTOMERS[val]['X'])
+        y = (CUSTOMERS[prev]['Y'], CUSTOMERS[val]['Y'])
+        plt.plot(x, y, marker='o', color=clr, lw=2)
+        plt.text(CUSTOMERS[val]['X'], CUSTOMERS[val]['Y'] + 0.5, str(order), color=clr)
+        order += 1
+    if val == 0:
+        order = 1
+        c += 1
+        clr = colors[c]
+    prev = val
+plt.savefig('solution.png', dpi=50)
 
 
